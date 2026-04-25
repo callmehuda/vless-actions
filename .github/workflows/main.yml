@@ -1,0 +1,47 @@
+name: Test VLESS Server
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  run-vless-server:
+    name: Run Cloudflared + Xray VLESS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install Cloudflared
+        run: |
+          sudo mkdir -p --mode=0755 /usr/share/keyrings
+
+          curl -fsSL https://pkg.cloudflare.com/cloudflare-public-v2.gpg | \
+            sudo tee /usr/share/keyrings/cloudflare-public-v2.gpg >/dev/null
+
+          echo 'deb [signed-by=/usr/share/keyrings/cloudflare-public-v2.gpg] https://pkg.cloudflare.com/cloudflared any main' | \
+            sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+          sudo apt-get update && sudo apt-get install -y cloudflared
+          cloudflared --version
+
+      - name: Install Xray
+        run: |
+          bash -c "$(curl -sL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+          xray version
+
+      - name: Run Cloudflared Tunnel
+        run: |
+          cloudflared tunnel run --token eyJhIjoiOWFjMWUxOTExMmU5ZWZmZDIzNmFlNDk1NDIyYmY2ZjgiLCJ0IjoiMmUwZmFmN2YtYjkyYy00MTcyLWFhZjYtMGQzZWUxZTkxNmVhIiwicyI6Ik1qWTROakl6TkRRdE9HVmpOUzAwTVRWbExUazJNR0l0WmpneU5HUXdOekEzTUdGaCJ9 &
+          echo "CLOUDFLARED_PID=$!" >> $GITHUB_ENV
+          sleep 5
+
+      - name: Run Xray
+        run: |
+          xray run -config config.json &
+          echo "XRAY_PID=$!" >> $GITHUB_ENV
+          sleep 3
+
+      - name: Keep alive
+        run: sleep 21600
